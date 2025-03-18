@@ -14,9 +14,9 @@ A TypeScript decorators package for [Hono](https://hono.dev/), specifically targ
 ## Installation
 
 ```bash
-yarn add @hono/decorators
+yarn add hono-decorators
 # or
-npm install @hono/decorators
+npm install hono-decorators
 ```
 
 ## Usage
@@ -25,7 +25,7 @@ Here's a basic example of how to use the decorators:
 
 ```typescript
 import { Hono } from 'hono';
-import { Controller, Get, Post } from '@hono/decorators';
+import { Controller, Get, Post } from 'hono-decorators';
 import type { Context } from 'hono';
 
 interface User {
@@ -81,7 +81,7 @@ export default app;
 You can use dependency injection with a container that implements the `Container` interface:
 
 ```typescript
-import { Container } from '@hono/decorators';
+import { Container } from 'hono-decorators';
 
 // Define your services
 class UserService {
