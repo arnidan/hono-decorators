@@ -2,9 +2,11 @@ import 'reflect-metadata';
 import type { Hono } from 'hono';
 import { getControllerMetadata } from './utils/metadata';
 import type { HttpMethod, RouteMetadata, Container } from './types';
+import { getMiddleware } from './decorators/middleware';
 
 export { Controller } from './decorators/controller';
 export { Get, Post, Put, Delete, Patch, Head, Options } from './decorators/routes';
+export { Middleware } from './decorators/middleware';
 export type { Container } from './types';
 
 type Constructor<T = any> = new (...args: any[]) => T;
@@ -32,32 +34,44 @@ export function registerControllers(
 
     const { path: basePath, routes } = getControllerMetadata(Controller);
 
+    // Get controller-level middleware
+    const controllerMiddleware = getMiddleware(Controller);
+
     routes.forEach((route: RouteMetadata) => {
       const fullPath = `${basePath}${route.path}`;
       const routeHandler = instance[route.handler].bind(instance);
 
+      // Combine controller and route middleware
+      const middleware = [
+        ...controllerMiddleware,
+        ...(route.middleware || [])
+      ];
+
+      // Create the handler chain - ensure it's always an array
+      const handlerChain = [...middleware, routeHandler];
+
       // Register the route with Hono
       switch (route.method) {
         case 'GET':
-          app.get(fullPath, routeHandler);
+          app.get(fullPath, ...handlerChain);
           break;
         case 'POST':
-          app.post(fullPath, routeHandler);
+          app.post(fullPath, ...handlerChain);
           break;
         case 'PUT':
-          app.put(fullPath, routeHandler);
+          app.put(fullPath, ...handlerChain);
           break;
         case 'DELETE':
-          app.delete(fullPath, routeHandler);
+          app.delete(fullPath, ...handlerChain);
           break;
         case 'PATCH':
-          app.patch(fullPath, routeHandler);
+          app.patch(fullPath, ...handlerChain);
           break;
         case 'HEAD':
-          app.get(fullPath, routeHandler); // Use get for HEAD requests as Hono doesn't have a dedicated head method
+          app.get(fullPath, ...handlerChain);
           break;
         case 'OPTIONS':
-          app.options(fullPath, routeHandler);
+          app.options(fullPath, ...handlerChain);
           break;
       }
     });

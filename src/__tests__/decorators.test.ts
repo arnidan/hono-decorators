@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { Controller, Get, Post } from '../';
+import { Controller, Get, Post, Middleware } from '../';
 import { registerControllers } from '../';
-import type { Context } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import type { Container } from '../types';
 
 describe('Hono Decorators', () => {
@@ -58,6 +58,99 @@ describe('Hono Decorators', () => {
         path: '/users',
         handler: 'createUser',
       });
+    });
+  });
+
+  describe('Middleware', () => {
+    let app: Hono;
+
+    beforeEach(() => {
+      app = new Hono();
+    });
+
+    it('should apply controller-level middleware', async () => {
+      const log: string[] = [];
+
+      const logMiddleware: MiddlewareHandler = async (c, next) => {
+        log.push('before');
+        await next();
+        log.push('after');
+      };
+
+      @Controller('/api')
+      @Middleware([logMiddleware])
+      class TestController {
+        @Get('/hello')
+        sayHello(c: Context) {
+          log.push('handler');
+          return c.text('Hello, World!');
+        }
+      }
+
+      registerControllers([TestController], app);
+      
+      const res = await app.request('/api/hello');
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('Hello, World!');
+      expect(log).toEqual(['before', 'handler', 'after']);
+    });
+
+    it('should apply route-level middleware', async () => {
+      const log: string[] = [];
+
+      const routeMiddleware: MiddlewareHandler = async (c, next) => {
+        log.push('route');
+        await next();
+      };
+
+      @Controller('/api')
+      class TestController {
+        @Get('/hello')
+        @Middleware([routeMiddleware])
+        sayHello(c: Context) {
+          log.push('handler');
+          return c.text('Hello, World!');
+        }
+      }
+
+      registerControllers([TestController], app);
+      
+      const res = await app.request('/api/hello');
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('Hello, World!');
+      expect(log).toEqual(['route', 'handler']);
+    });
+
+    it('should combine controller and route middleware in correct order', async () => {
+      const log: string[] = [];
+
+      const controllerMiddleware: MiddlewareHandler = async (c, next) => {
+        log.push('controller');
+        await next();
+      };
+
+      const routeMiddleware: MiddlewareHandler = async (c, next) => {
+        log.push('route');
+        await next();
+      };
+
+      @Controller('/api')
+      @Middleware([controllerMiddleware])
+      class TestController {
+        @Get('/hello')
+        @Middleware([routeMiddleware])
+        sayHello(c: Context) {
+          log.push('handler');
+          return c.text('Hello, World!');
+        }
+      }
+
+      registerControllers([TestController], app);
+      
+      const res = await app.request('/api/hello');
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('Hello, World!');
+      expect(log).toEqual(['controller', 'route', 'handler']);
     });
   });
 

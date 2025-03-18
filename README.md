@@ -9,6 +9,7 @@ A TypeScript decorators package for [Hono](https://hono.dev/), specifically targ
 - Path normalization and validation
 - TypeScript support with full type safety
 - Optional dependency injection support
+- Controller and route-level middleware support
 - Designed for Cloudflare Workers
 
 ## Installation
@@ -25,19 +26,37 @@ Here's a basic example of how to use the decorators:
 
 ```typescript
 import { Hono } from 'hono';
-import { Controller, Get, Post } from 'hono-decorators';
-import type { Context } from 'hono';
+import { Controller, Get, Post, Middleware } from '@hono/decorators';
+import type { Context, MiddlewareHandler } from 'hono';
+
+// Define middleware
+const logMiddleware: MiddlewareHandler = async (c, next) => {
+  console.log(`${c.req.method} ${c.req.url}`);
+  await next();
+};
+
+const authMiddleware: MiddlewareHandler = async (c, next) => {
+  const token = c.req.header('Authorization');
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  await next();
+};
 
 interface User {
   id: number;
   name: string;
 }
 
+// Apply middleware to the entire controller
 @Controller('/users')
+@Middleware([logMiddleware])
 class UserController {
   private users: User[] = [];
 
+  // Apply middleware to a specific route
   @Get('/')
+  @Middleware([authMiddleware])
   async getUsers(c: Context) {
     return c.json(this.users);
   }
@@ -76,46 +95,6 @@ registerControllers([UserController], app);
 export default app;
 ```
 
-### Using Dependency Injection
-
-You can use dependency injection with a container that implements the `Container` interface:
-
-```typescript
-import { Container } from 'hono-decorators';
-
-// Define your services
-class UserService {
-  getUsers() {
-    return [/* ... */];
-  }
-}
-
-// Create your controller with dependencies
-@Controller('/users')
-class UserController {
-  constructor(private userService: UserService) {}
-
-  @Get('/')
-  async getUsers(c: Context) {
-    return c.json(this.userService.getUsers());
-  }
-}
-
-// Implement the Container interface
-const container: Container = {
-  get<T>(identifier: any): T {
-    if (identifier === UserController) {
-      return new UserController(new UserService()) as T;
-    }
-    throw new Error(`No provider for ${identifier}`);
-  }
-};
-
-// Register controllers with the container
-const app = new Hono();
-registerControllers([UserController], app, { container });
-```
-
 ## API Reference
 
 ### Decorators
@@ -126,6 +105,25 @@ Marks a class as a controller and sets the base path for all routes within it.
 ```typescript
 @Controller('/api/users')
 class UserController {
+  // ...
+}
+```
+
+#### @Middleware(handlers: MiddlewareHandler[] | { middleware: MiddlewareHandler[] })
+Applies middleware to a controller class or route method.
+
+```typescript
+// Controller-level middleware
+@Controller('/api')
+@Middleware([logMiddleware])
+class ApiController {
+  // ...
+}
+
+// Route-level middleware
+@Get('/protected')
+@Middleware([authMiddleware])
+getProtectedResource(c: Context) {
   // ...
 }
 ```
